@@ -93,6 +93,14 @@ class RAGPipeline:
             logger.error(f"Failed to initialize Azure OpenAI client: {str(e)}", exc_info=True)
             raise
 
+        # FAISS index and metadata
+        self.index = None
+        self.chunks = []
+        self.store_path = 'vector_store'
+        os.makedirs(self.store_path, exist_ok=True)
+        logger.info(f"Vector store path: {self.store_path}")
+        logger.info("RAG Pipeline initialization complete")
+
     def _call_llm(self, prompt: str):
         if self.api_mode == "responses":
             # The OpenAI Python SDK has evolved; support both param names.
@@ -142,14 +150,6 @@ class RAGPipeline:
             return "\n".join(text_parts).strip()
 
         return ""
-
-        # FAISS index and metadata
-        self.index = None
-        self.chunks = []
-        self.store_path = 'vector_store'
-        os.makedirs(self.store_path, exist_ok=True)
-        logger.info(f"Vector store path: {self.store_path}")
-        logger.info("RAG Pipeline initialization complete")
 
     def is_indexed(self) -> bool:
         """Check if vector store already exists"""
