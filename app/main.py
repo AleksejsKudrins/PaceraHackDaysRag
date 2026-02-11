@@ -3,6 +3,9 @@ import time
 import sys
 import os
 
+# App version - set via APP_VERSION env var during build, defaults to 'dev'
+APP_VERSION = os.environ.get("APP_VERSION", "dev")
+
 # Add the parent directory to sys.path so we can import chunking_utils
 # if we are running from the app folder
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
@@ -168,3 +171,7 @@ if prompt := st.chat_input("Ask a question about your documents..."):
             "content": full_response,
             "citations": dummy_citations
         })
+
+# --- Footer with version ---
+st.divider()
+st.caption(f"Version: {APP_VERSION}")
