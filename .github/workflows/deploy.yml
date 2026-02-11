@@ -22,16 +22,18 @@ jobs:
           script: |
             set -euo pipefail
 
+            APP_DIR=/opt/rag-app
+
             # Ensure the directory exists and has correct permissions
-            sudo mkdir -p /opt/rag-app
-            sudo chown -R ${{ secrets.SERVER_USER }}:${{ secrets.SERVER_USER }} /opt/rag-app
+            sudo mkdir -p "$APP_DIR"
+            sudo chown -R ${{ secrets.SERVER_USER }}:${{ secrets.SERVER_USER }} "$APP_DIR"
 
             # Navigate to directory
-            cd /opt/rag-app
+            cd "$APP_DIR"
 
             # Initialize or update the repository
             if [ ! -d ".git" ]; then
-              git clone https://github.com/${{ github.repository }}.git .
+              git clone "https://github.com/${{ github.repository }}.git" .
             else
               git fetch origin
               git reset --hard origin/main
@@ -60,8 +62,24 @@ jobs:
               sudo service docker start
             fi
 
+            # Locate compose file (repo may use docker-compose.yml or compose.yml)
+            COMPOSE_ARGS=""
+            if [ -f docker-compose.yml ]; then
+              COMPOSE_ARGS="-f docker-compose.yml"
+            elif [ -f docker-compose.yaml ]; then
+              COMPOSE_ARGS="-f docker-compose.yaml"
+            elif [ -f compose.yml ]; then
+              COMPOSE_ARGS="-f compose.yml"
+            elif [ -f compose.yaml ]; then
+              COMPOSE_ARGS="-f compose.yaml"
+            else
+              echo "No docker compose file found in $APP_DIR (docker-compose.yml/.yaml or compose.yml/.yaml)." >&2
+              ls -la
+              exit 1
+            fi
+
             # Build and start the application
-            sudo docker compose up -d --build --remove-orphans
+            sudo docker compose $COMPOSE_ARGS up -d --build --remove-orphans
 
             # Quick health signal in the workflow logs
-            sudo docker compose ps
+            sudo docker compose $COMPOSE_ARGS ps
