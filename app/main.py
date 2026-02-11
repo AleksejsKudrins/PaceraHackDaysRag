@@ -13,7 +13,7 @@ from rag_backend import RAGPipeline
 st.set_page_config(page_title="RAG Demo", page_icon="🤖", layout="wide")
 
 # Initialize RAG pipeline with caching
-@st.cache_resource
+@st.cache_resource(show_spinner=False)
 def load_rag_pipeline():
     """Initialize RAG pipeline with caching to avoid reloads"""
     pipeline = RAGPipeline()
@@ -49,6 +49,23 @@ if "processed_chunks" not in st.session_state:
 # Sidebar for Knowledge Base Management
 with st.sidebar:
     st.title("📚 Knowledge Base")
+    
+    # Search Mode Selector
+    search_type = st.radio(
+        "Search Mode",
+        ["Hybrid (Vector + Keyword)", "Vector Only", "Keyword Only (BM25)"],
+        index=0,
+        help="Hybrid: Best of both worlds.\nVector: Semantic meaning.\nKeyword: Exact matches."
+    )
+    
+    # Map selection to backend values
+    search_type_map = {
+        "Hybrid (Vector + Keyword)": "hybrid",
+        "Vector Only": "vector",
+        "Keyword Only (BM25)": "keyword"
+    }
+    selected_search_type = search_type_map[search_type]
+    
     st.subheader("Upload files to process into chunks")
     
     # Configuration for chunking
@@ -121,7 +138,7 @@ if prompt := st.chat_input("Ask a question about your documents..."):
         # Real RAG retrieval and response
         if rag_available:
             try:
-                dummy_answer, dummy_citations = rag_pipeline.query(prompt)
+                dummy_answer, dummy_citations = rag_pipeline.query(prompt, search_type=selected_search_type)
             except Exception as e:
                 dummy_answer = f"Error retrieving answer: {str(e)}"
                 dummy_citations = []

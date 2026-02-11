@@ -8,6 +8,8 @@ import faiss
 from openai import AzureOpenAI
 from openai import NotFoundError
 from chunking_utils import DocumentChunker
+from rank_bm25 import BM25Okapi
+import string
 
 # Configure logging
 logging.basicConfig(
@@ -95,6 +97,7 @@ class RAGPipeline:
 
         # FAISS index and metadata
         self.index = None
+        self.bm25 = None
         self.chunks = []
         self.store_path = 'vector_store'
         os.makedirs(self.store_path, exist_ok=True)
@@ -214,6 +217,12 @@ class RAGPipeline:
             logger.info(f"Saving chunks metadata to {chunks_path}")
             with open(chunks_path, 'w', encoding='utf-8') as f:
                 json.dump(self.chunks, f, indent=2)
+            # Create BM25 index
+            logger.info("Creating BM25 index...")
+            tokenized_corpus = [self._tokenize_chunk(chunk['content']) for chunk in self.chunks]
+            self.bm25 = BM25Okapi(tokenized_corpus)
+            logger.info("BM25 index created")
+
             logger.info("Document indexing complete and saved to disk")
 
         except Exception as e:
@@ -235,6 +244,12 @@ class RAGPipeline:
                 self.chunks = json.load(f)
             logger.info(f"Loaded {len(self.chunks)} chunks metadata")
 
+            # Rebuild BM25 index
+            logger.info("Rebuilding BM25 index from loaded chunks...")
+            tokenized_corpus = [self._tokenize_chunk(chunk['content']) for chunk in self.chunks]
+            self.bm25 = BM25Okapi(tokenized_corpus)
+            logger.info("BM25 index rebuilt")
+
             # Get file sizes for debugging
             index_size = os.path.getsize(index_path) / (1024 * 1024)  # MB
             chunks_size = os.path.getsize(chunks_path) / (1024 * 1024)  # MB
@@ -247,32 +262,93 @@ class RAGPipeline:
             logger.error(f"Error loading vector store: {str(e)}", exc_info=True)
             raise
 
-    def query(self, question: str, k: int = 5) -> Tuple[str, List[str]]:
+    def _tokenize_chunk(self, text: str) -> List[str]:
+        """Simple tokenization for BM25"""
+        # Lowercase and remove punctuation
+        text = text.lower()
+        return text.translate(str.maketrans('', '', string.punctuation)).split()
+
+    def _rrf_fusion(self, vector_results: Dict[int, float], keyword_results: Dict[int, float], k: int = 5) -> List[int]:
+        """
+        Reciprocal Rank Fusion
+        merges results from reduced vector/keyword search
+        """
+        rrf_score = {}
+        
+        # Calculate RRF score
+        # k parameter in RRF formula usually 60
+        c = 60
+        
+        # Combine unique indices
+        all_indices = set(vector_results.keys()) | set(keyword_results.keys())
+        
+        for idx in all_indices:
+            v_score = 0
+            k_score = 0
+            
+            if idx in vector_results:
+                # Rank is 1-based position in sorted list
+                # In our case, vector_results values are distances (lower is better for L2)
+                # But here we need rank. Let's assume the passed dicts are {index: score} 
+                # where score is the rank (0-based)
+                rank = vector_results[idx]
+                v_score = 1.0 / (c + rank + 1)
+                
+            if idx in keyword_results:
+                rank = keyword_results[idx]
+                k_score = 1.0 / (c + rank + 1)
+                
+            rrf_score[idx] = v_score + k_score
+            
+        # Sort by RRF score (descending)
+        sorted_indices = sorted(rrf_score.items(), key=lambda x: x[1], reverse=True)
+        return [idx for idx, score in sorted_indices[:k]]
+
+    def query(self, question: str, k: int = 5, search_type: str = "hybrid") -> Tuple[str, List[str]]:
         """Retrieve relevant chunks and generate answer with citations"""
-        logger.info(f"Processing query: '{question}' (k={k})")
+        logger.info(f"Processing query: '{question}' (k={k}, type={search_type})")
 
         try:
             # Load index if not already loaded
-            if self.index is None:
+            if self.index is None or (search_type != "vector" and self.bm25 is None):
                 logger.info("Index not loaded, loading from disk...")
                 self.load_index()
 
-            # Embed the question
-            logger.info("Embedding query...")
-            query_embedding = self.embedding_model.encode([question])[0]
-            logger.info(f"Query embedded: shape={query_embedding.shape}")
+            retrieved_indices = []
 
-            # Search for top-k similar chunks
-            logger.info(f"Searching FAISS index for top-{k} similar chunks...")
-            distances, indices = self.index.search(
-                query_embedding.reshape(1, -1).astype('float32'),
-                k
-            )
-            logger.info(f"FAISS search complete. Distances: {distances[0]}, Indices: {indices[0]}")
+            # 1. Vector Search
+            if search_type in ["vector", "hybrid"]:
+                logger.info("Performing Vector Search...")
+                query_embedding = self.embedding_model.encode([question])[0]
+                distances, indices = self.index.search(
+                    query_embedding.reshape(1, -1).astype('float32'),
+                    k * 2 if search_type == "hybrid" else k # Fetch more for fusion
+                )
+                vector_results = {idx: i for i, idx in enumerate(indices[0])} # {doc_idx: rank}
+                if search_type == "vector":
+                    retrieved_indices = indices[0]
+
+            # 2. Keyword Search (BM25)
+            if search_type in ["keyword", "hybrid"]:
+                logger.info("Performing Keyword Search (BM25)...")
+                tokenized_query = self._tokenize_chunk(question)
+                # BM25 returns scores, we need top-k
+                doc_scores = self.bm25.get_scores(tokenized_query)
+                # Get top k indices
+                top_n = k * 2 if search_type == "hybrid" else k
+                top_indices = np.argsort(doc_scores)[::-1][:top_n]
+                keyword_results = {idx: i for i, idx in enumerate(top_indices)} # {doc_idx: rank}
+                if search_type == "keyword":
+                    retrieved_indices = top_indices
+
+            # 3. Hybrid Fusion
+            if search_type == "hybrid":
+                logger.info("Performing Hybrid Fusion (RRF)...")
+                retrieved_indices = self._rrf_fusion(vector_results, keyword_results, k=k)
 
             # Retrieve chunks
-            retrieved_chunks = [self.chunks[i] for i in indices[0]]
-            logger.info(f"Retrieved {len(retrieved_chunks)} chunks")
+            retrieved_chunks = [self.chunks[i] for i in retrieved_indices]
+            logger.info(f"Retrieved {len(retrieved_chunks)} chunks via {search_type} search")
 
             # Build context for LLM
             context = "\n\n".join([

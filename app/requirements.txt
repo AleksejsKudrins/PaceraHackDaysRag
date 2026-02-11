@@ -10,3 +10,5 @@ tiktoken
 torch
 sentence-transformers
 
+
+rank_bm25
