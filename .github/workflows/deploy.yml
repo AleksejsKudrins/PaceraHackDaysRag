@@ -39,12 +39,16 @@ jobs:
               git reset --hard origin/main
             fi
 
-            # Write docker compose environment (Cloudflared token)
-            # Add CLOUDFLARED_TOKEN as a GitHub Actions secret.
-            if [ -n "${{ secrets.CLOUDFLARED_TOKEN }}" ]; then
-              printf '%s\n' "CLOUDFLARED_TOKEN=${{ secrets.CLOUDFLARED_TOKEN }}" > .env
-              chmod 600 .env
-            fi
+            # Write docker compose environment variables
+            # Add these as GitHub Actions secrets: CLOUDFLARED_TOKEN, AZURE_OPENAI_*
+            cat > .env << 'EOF'
+            CLOUDFLARED_TOKEN=${{ secrets.CLOUDFLARED_TOKEN }}
+            AZURE_OPENAI_ENDPOINT=${{ secrets.AZURE_OPENAI_ENDPOINT }}
+            AZURE_OPENAI_API_KEY=${{ secrets.AZURE_OPENAI_API_KEY }}
+            AZURE_OPENAI_API_VERSION=${{ secrets.AZURE_OPENAI_API_VERSION }}
+            AZURE_OPENAI_DEPLOYMENT_NAME=${{ secrets.AZURE_OPENAI_DEPLOYMENT_NAME }}
+            EOF
+            chmod 600 .env
 
             # Ensure Docker + Compose V2 are installed
             if ! docker compose version >/dev/null 2>&1; then

@@ -1,1 +1,7 @@
 streamlit
+sentence-transformers
+faiss-cpu
+openai
+langchain-text-splitters
+pypdf
+tiktoken

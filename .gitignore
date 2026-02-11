@@ -40,3 +40,8 @@ Python chunk creation logic/chunks_output.json
 .env
 *.env
 chunks_output.json
+
+# Vector Store
+vector_store/
+*.index
+chunks.json

@@ -7,9 +7,38 @@ import os
 # if we are running from the app folder
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 from chunking_utils import DocumentChunker
+from rag_backend import RAGPipeline
 
 # Configure the Streamlit page with title and icon
 st.set_page_config(page_title="RAG Demo", page_icon="🤖", layout="wide")
+
+# Initialize RAG pipeline with caching
+@st.cache_resource
+def load_rag_pipeline():
+    """Initialize RAG pipeline with caching to avoid reloads"""
+    pipeline = RAGPipeline()
+
+    if not pipeline.is_indexed():
+        # First-time indexing of default documents
+        default_docs = []
+        if os.path.exists('docs/rag-project-overview.md'):
+            default_docs.append('docs/rag-project-overview.md')
+        if os.path.exists('docs/team-ai-usage.md'):
+            default_docs.append('docs/team-ai-usage.md')
+
+        if default_docs:
+            pipeline.index_documents(default_docs)
+    else:
+        pipeline.load_index()
+
+    return pipeline
+
+try:
+    rag_pipeline = load_rag_pipeline()
+    rag_available = True
+except Exception as e:
+    st.warning(f"RAG pipeline initialization failed: {str(e)}. Using mock mode.")
+    rag_available = False
 
 # Initialize the session state
 if "messages" not in st.session_state:
@@ -89,14 +118,22 @@ if prompt := st.chat_input("Ask a question about your documents..."):
         message_placeholder = st.empty()
         full_response = ""
 
-        # Use processed chunks for a more "realistic" mock citation if they exist
-        if st.session_state.processed_chunks:
-            source_names = list(set([c['metadata']['source'] for c in st.session_state.processed_chunks[:2]]))
-            dummy_answer = f"I've analyzed your {len(st.session_state.processed_chunks)} document chunks. To answer '{prompt}', I searched through {', '.join(source_names)}. This is a mock response demonstrating the RAG flow."
-            dummy_citations = [f"Source: {name}" for name in source_names]
+        # Real RAG retrieval and response
+        if rag_available:
+            try:
+                dummy_answer, dummy_citations = rag_pipeline.query(prompt)
+            except Exception as e:
+                dummy_answer = f"Error retrieving answer: {str(e)}"
+                dummy_citations = []
         else:
-            dummy_answer = f"I don't have any uploaded documents yet! Please upload and process files in the sidebar. (Mock answer to: '{prompt}')"
-            dummy_citations = ["No documents uploaded"]
+            # Fallback to mock mode if RAG is not available
+            if st.session_state.processed_chunks:
+                source_names = list(set([c['metadata']['source'] for c in st.session_state.processed_chunks[:2]]))
+                dummy_answer = f"I've analyzed your {len(st.session_state.processed_chunks)} document chunks. To answer '{prompt}', I searched through {', '.join(source_names)}. This is a mock response demonstrating the RAG flow."
+                dummy_citations = [f"Source: {name}" for name in source_names]
+            else:
+                dummy_answer = f"I don't have any uploaded documents yet! Please upload and process files in the sidebar. (Mock answer to: '{prompt}')"
+                dummy_citations = ["No documents uploaded"]
 
         for chunk in dummy_answer.split():
             full_response += chunk + " "

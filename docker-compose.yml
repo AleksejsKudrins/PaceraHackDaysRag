@@ -3,6 +3,14 @@ services:
     build: .
     ports:
       - "127.0.0.1:8501:8501"
+    volumes:
+      - ./app/vector_store:/app/vector_store
+    environment:
+      - AZURE_OPENAI_ENDPOINT=${AZURE_OPENAI_ENDPOINT}
+      - AZURE_OPENAI_API_KEY=${AZURE_OPENAI_API_KEY}
+      - AZURE_OPENAI_API_VERSION=${AZURE_OPENAI_API_VERSION}
+      - AZURE_OPENAI_DEPLOYMENT_NAME=${AZURE_OPENAI_DEPLOYMENT_NAME}
+      - CLOUDFLARED_TOKEN=${CLOUDFLARED_TOKEN}
     networks:
       - rag-net
     restart: always
