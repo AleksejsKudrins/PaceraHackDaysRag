@@ -39,6 +39,13 @@ jobs:
               git reset --hard origin/main
             fi
 
+            # Write docker compose environment (Cloudflared token)
+            # Add CLOUDFLARED_TOKEN as a GitHub Actions secret.
+            if [ -n "${{ secrets.CLOUDFLARED_TOKEN }}" ]; then
+              printf '%s\n' "CLOUDFLARED_TOKEN=${{ secrets.CLOUDFLARED_TOKEN }}" > .env
+              chmod 600 .env
+            fi
+
             # Ensure Docker + Compose V2 are installed
             if ! docker compose version >/dev/null 2>&1; then
               sudo apt-get update
