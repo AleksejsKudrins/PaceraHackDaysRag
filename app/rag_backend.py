@@ -6,6 +6,7 @@ from typing import List, Dict, Tuple
 from sentence_transformers import SentenceTransformer
 import faiss
 from openai import AzureOpenAI
+from openai import NotFoundError
 from chunking_utils import DocumentChunker
 
 # Configure logging
@@ -14,6 +15,19 @@ logging.basicConfig(
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
 )
 logger = logging.getLogger(__name__)
+
+
+def _normalize_azure_endpoint(endpoint: str) -> str:
+    endpoint = (endpoint or "").strip()
+    if not endpoint:
+        return endpoint
+    # Common misconfig: users paste an endpoint that already includes /openai
+    # The AzureOpenAI client will append /openai internally.
+    lowered = endpoint.lower()
+    openai_idx = lowered.find("/openai")
+    if openai_idx != -1:
+        endpoint = endpoint[:openai_idx]
+    return endpoint.rstrip("/")
 
 class RAGPipeline:
     def __init__(self):
@@ -29,16 +43,42 @@ class RAGPipeline:
             raise
 
         # Initialize Azure OpenAI client
-        azure_endpoint = os.getenv('AZURE_OPENAI_ENDPOINT')
+        azure_endpoint = _normalize_azure_endpoint(os.getenv('AZURE_OPENAI_ENDPOINT'))
         api_key = os.getenv('AZURE_OPENAI_API_KEY')
-        api_version = os.getenv('AZURE_OPENAI_API_VERSION', '2024-02-15-preview')
-        deployment_name = os.getenv('AZURE_OPENAI_DEPLOYMENT_NAME', 'gpt-4')
+        # Note: newer models (e.g., GPT-5 deployments) often require newer preview API versions.
+        api_version = os.getenv('AZURE_OPENAI_API_VERSION', '2025-01-01-preview')
+        deployment_name = os.getenv('AZURE_OPENAI_DEPLOYMENT_NAME')
+        api_mode = (os.getenv('AZURE_OPENAI_API_MODE', 'chat_completions') or '').strip().lower()
 
-        logger.info(f"Azure OpenAI configuration - Endpoint: {azure_endpoint}, Version: {api_version}, Deployment: {deployment_name}")
+        # Back-compat aliases
+        if api_mode in {"chat", "chatcompletions", "chat-completions"}:
+            api_mode = "chat_completions"
+        if api_mode in {"response", "responses_api", "responses-api"}:
+            api_mode = "responses"
+
+        logger.info(
+            "Azure OpenAI configuration - Endpoint: %s, Version: %s, Deployment: %s, Mode: %s",
+            azure_endpoint,
+            api_version,
+            deployment_name,
+            api_mode,
+        )
 
         if not azure_endpoint or not api_key:
             logger.error("Missing Azure OpenAI credentials in environment variables")
             raise ValueError("AZURE_OPENAI_ENDPOINT and AZURE_OPENAI_API_KEY must be set in environment")
+
+        if not deployment_name:
+            raise ValueError(
+                "AZURE_OPENAI_DEPLOYMENT_NAME must be set to your Azure OpenAI deployment name "
+                "(this is the deployment name in Azure AI Foundry/Studio, not necessarily the model family name)."
+            )
+
+        if api_mode not in {"chat_completions", "responses"}:
+            raise ValueError(
+                "AZURE_OPENAI_API_MODE must be either 'chat_completions' or 'responses'. "
+                f"Got: {api_mode!r}"
+            )
 
         try:
             self.client = AzureOpenAI(
@@ -47,10 +87,61 @@ class RAGPipeline:
                 api_version=api_version
             )
             self.deployment_name = deployment_name
+            self.api_mode = api_mode
             logger.info("Azure OpenAI client initialized successfully")
         except Exception as e:
             logger.error(f"Failed to initialize Azure OpenAI client: {str(e)}", exc_info=True)
             raise
+
+    def _call_llm(self, prompt: str):
+        if self.api_mode == "responses":
+            # The OpenAI Python SDK has evolved; support both param names.
+            kwargs = {
+                "model": self.deployment_name,
+                "instructions": "You are a helpful assistant that answers questions based on provided context.",
+                "input": prompt,
+                "temperature": 0.7,
+            }
+            try:
+                return self.client.responses.create(**kwargs, max_output_tokens=1024)
+            except TypeError:
+                return self.client.responses.create(**kwargs, max_tokens=1024)
+        else:
+            return self.client.chat.completions.create(
+                model=self.deployment_name,
+                messages=[
+                    {"role": "system", "content": "You are a helpful assistant that answers questions based on provided context."},
+                    {"role": "user", "content": prompt},
+                ],
+                max_tokens=1024,
+                temperature=0.7,
+            )
+
+    @staticmethod
+    def _extract_text_from_response(response) -> str:
+        # chat.completions
+        if hasattr(response, "choices") and response.choices:
+            msg = response.choices[0].message
+            return getattr(msg, "content", None) or ""
+
+        # responses
+        if hasattr(response, "output_text"):
+            return response.output_text or ""
+
+        # conservative fallback for older SDK shapes
+        if hasattr(response, "output") and response.output:
+            text_parts = []
+            for item in response.output:
+                content = getattr(item, "content", None)
+                if not content:
+                    continue
+                for part in content:
+                    part_text = getattr(part, "text", None)
+                    if part_text:
+                        text_parts.append(part_text)
+            return "\n".join(text_parts).strip()
+
+        return ""
 
         # FAISS index and metadata
         self.index = None
@@ -203,23 +294,26 @@ Question: {question}
 Answer:"""
 
             # Call Azure OpenAI API
-            logger.info(f"Calling Azure OpenAI API (model={self.deployment_name})...")
+            logger.info(
+                "Calling Azure OpenAI API (deployment=%s, mode=%s)...",
+                self.deployment_name,
+                self.api_mode,
+            )
             try:
-                response = self.client.chat.completions.create(
-                    model=self.deployment_name,
-                    messages=[
-                        {"role": "system", "content": "You are a helpful assistant that answers questions based on provided context."},
-                        {"role": "user", "content": prompt}
-                    ],
-                    max_tokens=1024,
-                    temperature=0.7
-                )
+                response = self._call_llm(prompt)
                 logger.info("Azure OpenAI API call successful")
+            except NotFoundError as e:
+                logger.error("Azure OpenAI API call failed (404 Not Found)")
+                logger.error(
+                    "Troubleshooting 404: verify AZURE_OPENAI_DEPLOYMENT_NAME exists; verify AZURE_OPENAI_ENDPOINT is like https://<resource>.openai.azure.com (no /openai); "
+                    "verify AZURE_OPENAI_API_VERSION supports your deployment; if using GPT-5 deployments, set AZURE_OPENAI_API_MODE=responses.")
+                logger.error(f"Azure OpenAI details - deployment={self.deployment_name}, mode={self.api_mode}")
+                raise
             except Exception as e:
                 logger.error(f"Azure OpenAI API call failed: {str(e)}", exc_info=True)
                 raise
 
-            answer = response.choices[0].message.content
+            answer = self._extract_text_from_response(response)
             logger.info(f"Generated answer: {len(answer)} characters")
 
             # Extract unique citations

@@ -73,8 +73,10 @@ User Query → Vector Search (FAISS) → Top-K Relevant Chunks → LLM (Azure Op
    ```env
    AZURE_OPENAI_ENDPOINT=https://your-endpoint.openai.azure.com/
    AZURE_OPENAI_API_KEY=your-api-key
-   AZURE_OPENAI_API_VERSION=2024-02-15-preview
+   AZURE_OPENAI_API_VERSION=2025-01-01-preview
    AZURE_OPENAI_DEPLOYMENT_NAME=your-deployment-name
+   # Use 'responses' for GPT-5 deployments, otherwise keep default 'chat_completions'
+   AZURE_OPENAI_API_MODE=responses
    ```
 
 4. **Run the application**
@@ -90,10 +92,12 @@ User Query → Vector Search (FAISS) → Top-K Relevant Chunks → LLM (Azure Op
    
    Create a `.env` file with your Azure OpenAI credentials and optional Cloudflare token:
    ```env
-   AZURE_OPENAI_ENDPOINT=your-endpoint
+   # IMPORTANT: endpoint should NOT include '/openai'
+   AZURE_OPENAI_ENDPOINT=https://your-endpoint.openai.azure.com/
    AZURE_OPENAI_API_KEY=your-api-key
-   AZURE_OPENAI_API_VERSION=2024-02-15-preview
+   AZURE_OPENAI_API_VERSION=2025-01-01-preview
    AZURE_OPENAI_DEPLOYMENT_NAME=your-deployment
+   AZURE_OPENAI_API_MODE=responses
    CLOUDFLARED_TOKEN=your-cloudflare-token  # Optional
    ```
 
@@ -165,6 +169,7 @@ PaceraHackDaysRag/
 | `AZURE_OPENAI_API_KEY` | Azure OpenAI API key | Yes |
 | `AZURE_OPENAI_API_VERSION` | API version (e.g., 2024-02-15-preview) | Yes |
 | `AZURE_OPENAI_DEPLOYMENT_NAME` | Name of your deployed model | Yes |
+| `AZURE_OPENAI_API_MODE` | `chat_completions` or `responses` (use `responses` for GPT-5 deployments) | No |
 | `CLOUDFLARED_TOKEN` | Cloudflare Tunnel token for public access | No |
 
 ### Chunking Configuration
