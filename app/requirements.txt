@@ -1,8 +1,12 @@
 streamlit
-sentence-transformers
 faiss-cpu
 openai
 langchain-text-splitters
 pypdf
 tiktoken
+
+# Force CPU-only PyTorch (no CUDA) - reduces image size from ~4GB to ~500MB
+--extra-index-url https://download.pytorch.org/whl/cpu
+torch
+sentence-transformers
 
