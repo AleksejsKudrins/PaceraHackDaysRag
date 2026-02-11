@@ -20,6 +20,8 @@ jobs:
           username: ${{ secrets.SERVER_USER }}
           key: ${{ secrets.SSH_PRIVATE_KEY }}
           script: |
+            set -euo pipefail
+
             # Ensure the directory exists and has correct permissions
             sudo mkdir -p /opt/rag-app
             sudo chown -R ${{ secrets.SERVER_USER }}:${{ secrets.SERVER_USER }} /opt/rag-app
@@ -35,8 +37,18 @@ jobs:
               git reset --hard origin/main
             fi
 
-            # Start the application using docker-compose
-            if ! command -v docker compose &> /dev/null; then
+            # Ensure Docker + Compose V2 are installed
+            if ! docker compose version >/dev/null 2>&1; then
               sudo apt-get update
-              sudo apt-get install -y docker-compose-plugin
+              sudo apt-get install -y ca-certificates curl gnupg
+
+              sudo install -m 0755 -d /etc/apt/keyrings
+              curl -fsSL https://download.docker.com/linux/ubuntu/gpg | sudo gpg --dearmor -o /etc/apt/keyrings/docker.gpg
+              sudo chmod a+r /etc/apt/keyrings/docker.gpg
+
+              . /etc/os-release
+              echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.gpg] https://download.docker.com/linux/ubuntu ${VERSION_CODENAME} stable" | sudo tee /etc/apt/sources.list.d/docker.list > /dev/null
+
+              sudo apt-get update
+              sudo apt-get install -y docker-ce docker-ce-cli containerd.io docker-compose-plugin
             fi
