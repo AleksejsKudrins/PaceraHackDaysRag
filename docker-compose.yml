@@ -21,3 +21,4 @@ services:
 networks:
   rag-net:
     name: rag-net
+ 
