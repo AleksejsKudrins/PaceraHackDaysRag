@@ -149,6 +149,12 @@ if prompt := st.chat_input("Ask a question about your documents..."):
             except Exception as e:
                 dummy_answer = f"Error retrieving answer: {str(e)}"
                 dummy_citations = []
+                # Provide debug info for 404 errors
+                if "404" in str(e):
+                    config = rag_pipeline.get_config()
+                    st.error("Azure OpenAI Configuration (Debug Info):")
+                    st.json(config)
+                    st.error("Please verify that 'deployment_name' matches your Azure OpenAI deployment exactly.")
         else:
             # Fallback to mock mode if RAG is not available
             if st.session_state.processed_chunks:

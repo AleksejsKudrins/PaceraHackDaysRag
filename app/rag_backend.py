@@ -89,6 +89,7 @@ class RAGPipeline:
                 api_version=api_version
             )
             self.deployment_name = deployment_name
+            self.api_version = api_version
             self.api_mode = api_mode
             logger.info("Azure OpenAI client initialized successfully")
         except Exception as e:
@@ -103,6 +104,15 @@ class RAGPipeline:
         os.makedirs(self.store_path, exist_ok=True)
         logger.info(f"Vector store path: {self.store_path}")
         logger.info("RAG Pipeline initialization complete")
+
+    def get_config(self) -> Dict[str, str]:
+        """Return current configuration for debugging"""
+        return {
+            "azure_endpoint": str(self.client.base_url) if hasattr(self, 'client') else "Not initialized",
+            "deployment_name": self.deployment_name,
+            "api_version": self.api_version,
+            "api_mode": self.api_mode
+        }
 
     def _call_llm(self, prompt: str):
         if self.api_mode == "responses":
