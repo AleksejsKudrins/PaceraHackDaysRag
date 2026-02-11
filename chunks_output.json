@@ -1,0 +1,65 @@
+[
+  {
+    "content": "**Theme:** AI & Intelligent Search\n**Topic:** Retrieval-Augmented Generation (RAG) \u2014 Smart Document Retrieval for LLMs  \n---",
+    "metadata": {
+      "source": "rag-project-overview.md",
+      "type": "markdown",
+      "Header 1": "Our Track/Theme -> Topic",
+      "sub_chunk_id": 0
+    }
+  },
+  {
+    "content": "**Problem:**\nOrganizations accumulate vast collections of documents (policies, reports, manuals, contracts, etc.). When users ask questions, sending all documents to a cloud LLM is impractical \u2014 it's slow, expensive, exceeds context-window limits, and risks exposing irrelevant sensitive data.  \n**What we will build:**\nA **RAG (Retrieval-Augmented Generation) pipeline** that:  \n- **Ingests & indexes** a large corpus of documents by chunking them and generating vector embeddings stored in a vector database.\n- **Retrieves** only the most semantically relevant document chunks for a given user query using similarity search.",
+    "metadata": {
+      "source": "rag-project-overview.md",
+      "type": "markdown",
+      "Header 1": "Problem Statement (what problem will we solve and what will we build)",
+      "sub_chunk_id": 0
+    }
+  },
+  {
+    "content": "- **Augments** the LLM prompt with just the retrieved context, so the cloud LLM receives only the information it needs \u2014 not all documents.\n- **Generates** accurate, grounded answers with source citations, reducing hallucination and cost.  \n---",
+    "metadata": {
+      "source": "rag-project-overview.md",
+      "type": "markdown",
+      "Header 1": "Problem Statement (what problem will we solve and what will we build)",
+      "sub_chunk_id": 1
+    }
+  },
+  {
+    "content": "- How to **chunk documents** effectively (size, overlap, metadata preservation) to balance retrieval precision and context completeness.\n- How **vector embeddings** capture semantic meaning and how different embedding models compare in quality and speed.\n- How to set up and query a **vector database** (e.g., FAISS, Chroma, Pinecone, Weaviate) for fast similarity search at scale.\n- How to design **prompt templates** that combine retrieved context with user queries to maximize answer quality.\n- How to **evaluate RAG quality** \u2014 measuring retrieval relevance (precision/recall) and generation faithfulness.",
+    "metadata": {
+      "source": "rag-project-overview.md",
+      "type": "markdown",
+      "Header 1": "Learning (what do we expect to learn)",
+      "sub_chunk_id": 0
+    }
+  },
+  {
+    "content": "- The trade-offs between **cost, latency, and accuracy** when limiting the context sent to a cloud LLM.\n- Best practices for handling **multi-format documents** (PDF, Word, HTML) in an ingestion pipeline.  \n---",
+    "metadata": {
+      "source": "rag-project-overview.md",
+      "type": "markdown",
+      "Header 1": "Learning (what do we expect to learn)",
+      "sub_chunk_id": 1
+    }
+  },
+  {
+    "content": "| Criterion | Target |\n|---|---|\n| **Retrieval relevance** | Top-5 retrieved chunks contain the correct answer \u2265 90% of the time on a test set of queries |\n| **Answer accuracy** | LLM-generated answers are factually correct and grounded in source documents \u2265 85% of the time (human-evaluated) |\n| **Context efficiency** | Only 3\u201310 relevant chunks (< 5% of total corpus) are sent to the LLM per query, keeping token usage and cost low |\n| **Latency** | End-to-end query response time < 5 seconds for a corpus of 1,000+ documents |\n| **Source traceability** | Every answer includes citations pointing back to the specific source document(s) and page/section |",
+    "metadata": {
+      "source": "rag-project-overview.md",
+      "type": "markdown",
+      "Header 1": "Success Criteria (what does good look like)",
+      "sub_chunk_id": 0
+    }
+  },
+  {
+    "content": "| **Scalability** | The pipeline handles at least 1,000 documents without degradation in retrieval quality or speed |\n| **Working demo** | A functional end-to-end prototype where a user can ask a natural-language question and receive an accurate, sourced answer |",
+    "metadata": {
+      "source": "rag-project-overview.md",
+      "type": "markdown",
+      "Header 1": "Success Criteria (what does good look like)",
+      "sub_chunk_id": 1
+    }
+  }
+]
