@@ -114,7 +114,11 @@ with st.sidebar:
                 st.text(c['content'][:100] + "...")
 
 # Display the main title and description of the application
-st.title("🤖 RAG Question Answering")
+title_col, version_col = st.columns([6, 1])
+with title_col:
+    st.title("🤖 RAG Question Answering")
+with version_col:
+    st.caption(f"Version: {APP_VERSION}")
 st.markdown("""
 This is an interactive RAG interface. Upload documents in the sidebar to process them into chunks, then ask questions about their content.
 """)
