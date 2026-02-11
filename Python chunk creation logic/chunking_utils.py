@@ -1,5 +1,5 @@
 import os
-from typing import List, Dict
+from typing import List, Dict, Optional
 from pypdf import PdfReader
 from langchain_text_splitters import (
     RecursiveCharacterTextSplitter, 
@@ -27,35 +27,58 @@ class DocumentChunker:
             chunk_overlap=chunk_overlap
         )
 
-    def load_pdf(self, file_path: str) -> List[Dict]:
-        """Loads a PDF and returns a list of page contents with metadata."""
+    def load_pdf(self, file_source, filename: Optional[str] = None) -> List[Dict]:
+        """
+        Loads a PDF and returns a list of page contents with metadata.
+        file_source can be a path (str) or a file-like object (e.g. from streamlit).
+        """
         documents = []
-        reader = PdfReader(file_path)
-        file_name = os.path.basename(file_path)
+        reader = PdfReader(file_source)
         
+        # Determine filename for metadata
+        if filename:
+            source_name = filename
+        elif isinstance(file_source, str):
+            source_name = os.path.basename(file_source)
+        else:
+            source_name = "uploaded_file.pdf"
+            
         for i, page in enumerate(reader.pages):
             text = page.extract_text()
-            if text.strip():
+            if text and text.strip():
                 documents.append({
                     "content": text,
                     "metadata": {
-                        "source": file_name,
+                        "source": source_name,
                         "page": i + 1,
                         "type": "pdf"
                     }
                 })
         return documents
 
-    def load_markdown(self, file_path: str) -> List[Dict]:
-        """Loads a Markdown file and returns its content with metadata."""
-        file_name = os.path.basename(file_path)
-        with open(file_path, 'r', encoding='utf-8') as f:
-            text = f.read()
+    def load_markdown(self, file_source, filename: Optional[str] = None) -> List[Dict]:
+        """
+        Loads a Markdown file and returns its content with metadata.
+        file_source can be a path (str) or a file-like object.
+        """
+        if filename:
+            source_name = filename
+        elif isinstance(file_source, str):
+            source_name = os.path.basename(file_source)
+        else:
+            source_name = "uploaded_file.md"
+
+        if isinstance(file_source, str):
+            with open(file_source, 'r', encoding='utf-8') as f:
+                text = f.read()
+        else:
+            # Assume it's a file-like object from Streamlit
+            text = file_source.read().decode("utf-8")
             
         return [{
             "content": text,
             "metadata": {
-                "source": file_name,
+                "source": source_name,
                 "type": "markdown"
             }
         }]
