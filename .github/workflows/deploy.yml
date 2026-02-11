@@ -52,3 +52,16 @@ jobs:
               sudo apt-get update
               sudo apt-get install -y docker-ce docker-ce-cli containerd.io docker-compose-plugin
             fi
+
+            # Ensure Docker daemon is running (required before starting containers)
+            if command -v systemctl >/dev/null 2>&1; then
+              sudo systemctl enable --now docker
+            else
+              sudo service docker start
+            fi
+
+            # Build and start the application
+            sudo docker compose up -d --build --remove-orphans
+
+            # Quick health signal in the workflow logs
+            sudo docker compose ps

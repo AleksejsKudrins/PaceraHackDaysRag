@@ -27,14 +27,14 @@ If the deployment script fails to clone the repository because it's private, you
 The deployment is fully automated via GitHub Actions:
 1.  Push code to the `main` branch.
 2.  The "Build and Deploy" workflow will trigger.
-3.  It will SSH into the server, pull the latest code, and run `docker-compose up --build -d`.
+3.  It will SSH into the server, pull the latest code, and run `docker compose up -d --build`.
 
 ## Local Deployment
 
 To run the app locally:
 
 ```bash
-docker-compose up --build
+docker compose up --build
 ```
 
 The app will be available at `http://localhost:8501`.
