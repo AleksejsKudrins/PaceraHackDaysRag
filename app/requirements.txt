@@ -1,1 +1,5 @@
 streamlit
+langchain-text-splitters
+pypdf
+tiktoken
+
