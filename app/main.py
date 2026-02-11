@@ -181,7 +181,3 @@ if prompt := st.chat_input("Ask a question about your documents..."):
             "content": full_response,
             "citations": dummy_citations
         })
-
-# --- Footer with version ---
-st.divider()
-st.caption(f"Version: {APP_VERSION}")
