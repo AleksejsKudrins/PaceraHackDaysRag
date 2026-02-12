@@ -73,6 +73,13 @@ with st.sidebar:
     }
     selected_search_type = search_type_map[search_type]
     
+    # HyDE Toggle
+    use_hyde = st.checkbox(
+        "🔮 Use HyDE (Hypothetical Document Embeddings)",
+        value=False,
+        help="Generate a hypothetical answer first, then search using its embedding. Improves retrieval quality but adds latency."
+    )
+    
     st.subheader("Upload files to process into chunks")
     
     # Configuration for chunking
@@ -149,7 +156,7 @@ if prompt := st.chat_input("Ask a question about your documents..."):
         # Real RAG retrieval and response
         if rag_available:
             try:
-                dummy_answer, dummy_citations = rag_pipeline.query(prompt, search_type=selected_search_type)
+                dummy_answer, dummy_citations = rag_pipeline.query(prompt, search_type=selected_search_type, use_hyde=use_hyde)
             except Exception as e:
                 dummy_answer = f"Error retrieving answer: {str(e)}"
                 dummy_citations = []

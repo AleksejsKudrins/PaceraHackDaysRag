@@ -137,6 +137,33 @@ class RAGPipeline:
                 max_completion_tokens=1024,
             )
 
+    def _generate_hypothetical_answer(self, query: str) -> str:
+        """Generate a hypothetical answer for HyDE technique"""
+        logger.info(f"Generating hypothetical answer for HyDE: {query}")
+        prompt = f"""Generate a detailed, hypothetical answer to the following question. 
+This answer will be used to find similar content, so make it comprehensive and specific.
+
+Question: {query}
+
+Hypothetical Answer:"""
+        
+        try:
+            response = self.client.chat.completions.create(
+                model=self.deployment_name,
+                messages=[
+                    {"role": "system", "content": "You are an expert that generates detailed hypothetical answers."},
+                    {"role": "user", "content": prompt}
+                ],
+                max_completion_tokens=512
+            )
+            hypothetical = response.choices[0].message.content
+            logger.info(f"Generated hypothetical answer: {hypothetical[:100]}...")
+            return hypothetical
+        except Exception as e:
+            logger.error(f"Error generating hypothetical answer: {e}")
+            # Fallback to original query if HyDE generation fails
+            return query
+
     @staticmethod
     def _extract_text_from_response(response) -> str:
         # chat.completions
@@ -313,9 +340,9 @@ class RAGPipeline:
         sorted_indices = sorted(rrf_score.items(), key=lambda x: x[1], reverse=True)
         return [idx for idx, score in sorted_indices[:k]]
 
-    def query(self, question: str, k: int = 5, search_type: str = "hybrid") -> Tuple[str, List[str]]:
+    def query(self, question: str, k: int = 5, search_type: str = "hybrid", use_hyde: bool = False) -> Tuple[str, List[str]]:
         """Retrieve relevant chunks and generate answer with citations"""
-        logger.info(f"Processing query: '{question}' (k={k}, type={search_type})")
+        logger.info(f"Processing query: '{question}' (k={k}, type={search_type}, hyde={use_hyde})")
 
         try:
             # Load index if not already loaded
@@ -324,11 +351,17 @@ class RAGPipeline:
                 self.load_index()
 
             retrieved_indices = []
+            
+            # HyDE: Generate hypothetical answer if enabled
+            search_text = question
+            if use_hyde and search_type in ["vector", "hybrid"]:
+                search_text = self._generate_hypothetical_answer(question)
+                logger.info(f"Using HyDE - searching with hypothetical answer instead of raw query")
 
             # 1. Vector Search
             if search_type in ["vector", "hybrid"]:
                 logger.info("Performing Vector Search...")
-                query_embedding = self.embedding_model.encode([question])[0]
+                query_embedding = self.embedding_model.encode([search_text])[0]
                 distances, indices = self.index.search(
                     query_embedding.reshape(1, -1).astype('float32'),
                     k * 2 if search_type == "hybrid" else k # Fetch more for fusion
