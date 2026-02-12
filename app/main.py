@@ -80,6 +80,24 @@ with st.sidebar:
         help="Generate a hypothetical answer first, then search using its embedding. Improves retrieval quality but adds latency."
     )
     
+    # Multi-Query Toggle
+    use_multi_query = st.checkbox(
+        "🔀 Use Multi-Query Expansion",
+        value=False,
+        help="Generate multiple query variations to improve recall. Increases API usage and latency."
+    )
+    
+    # Variation count slider (only show if multi-query is enabled)
+    num_variations = 3  # default
+    if use_multi_query:
+        num_variations = st.slider(
+            "Number of variations",
+            min_value=2,
+            max_value=5,
+            value=3,
+            help="More variations = better recall but higher cost"
+        )
+    
     st.subheader("Upload files to process into chunks")
     
     # Configuration for chunking
@@ -156,7 +174,13 @@ if prompt := st.chat_input("Ask a question about your documents..."):
         # Real RAG retrieval and response
         if rag_available:
             try:
-                dummy_answer, dummy_citations = rag_pipeline.query(prompt, search_type=selected_search_type, use_hyde=use_hyde)
+                dummy_answer, dummy_citations = rag_pipeline.query(
+                    prompt, 
+                    search_type=selected_search_type, 
+                    use_hyde=use_hyde,
+                    use_multi_query=use_multi_query,
+                    num_variations=num_variations
+                )
             except Exception as e:
                 dummy_answer = f"Error retrieving answer: {str(e)}"
                 dummy_citations = []
