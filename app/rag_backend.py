@@ -134,8 +134,7 @@ class RAGPipeline:
                     {"role": "system", "content": "You are a helpful assistant that answers questions based on provided context."},
                     {"role": "user", "content": prompt},
                 ],
-                max_tokens=1024,
-                temperature=0.7,
+                max_completion_tokens=1024,
             )
 
     @staticmethod

@@ -2,6 +2,10 @@ import streamlit as st
 import time
 import sys
 import os
+from dotenv import load_dotenv
+
+# Load environment variables from .env file if present
+load_dotenv()
 
 # App version - set via APP_VERSION env var during build, defaults to 'dev'
 APP_VERSION = os.environ.get("APP_VERSION", "dev")
