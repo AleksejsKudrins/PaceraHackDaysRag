@@ -69,7 +69,15 @@ User Query → Vector Search (FAISS) → Top-K Relevant Chunks → LLM (Azure Op
 
 3. **Set environment variables**
    
-   Create a `.env` file in the root directory:
+   Copy the template and fill in values:
+   ```bash
+   # Windows (PowerShell)
+   Copy-Item .env.example .env
+   # macOS/Linux
+   # cp .env.example .env
+   ```
+
+   Minimum required values in `.env`:
    ```env
    AZURE_OPENAI_ENDPOINT=https://your-endpoint.openai.azure.com/
    AZURE_OPENAI_API_KEY=your-api-key
@@ -90,7 +98,7 @@ User Query → Vector Search (FAISS) → Top-K Relevant Chunks → LLM (Azure Op
 
 1. **Configure environment variables**
    
-   Create a `.env` file with your Azure OpenAI credentials and optional Cloudflare token:
+   Copy `.env.example` to `.env` and fill in your Azure OpenAI credentials (and optional Cloudflare token):
    ```env
    # IMPORTANT: endpoint should NOT include '/openai'
    AZURE_OPENAI_ENDPOINT=https://your-endpoint.openai.azure.com/
@@ -167,10 +175,11 @@ PaceraHackDaysRag/
 |----------|-------------|----------|
 | `AZURE_OPENAI_ENDPOINT` | Azure OpenAI service endpoint | Yes |
 | `AZURE_OPENAI_API_KEY` | Azure OpenAI API key | Yes |
-| `AZURE_OPENAI_API_VERSION` | API version (e.g., 2024-02-15-preview) | Yes |
+| `AZURE_OPENAI_API_VERSION` | API version (default: 2025-01-01-preview) | Yes |
 | `AZURE_OPENAI_DEPLOYMENT_NAME` | Name of your deployed model | Yes |
 | `AZURE_OPENAI_API_MODE` | `chat_completions` or `responses` (use `responses` for GPT-5 deployments) | No |
 | `CLOUDFLARED_TOKEN` | Cloudflare Tunnel token for public access | No |
+| `APP_VERSION` | Build/version label (Docker build arg `APP_VERSION`, defaults to `dev`) | No |
 
 ### Chunking Configuration
 

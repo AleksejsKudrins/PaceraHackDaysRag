@@ -215,8 +215,9 @@ The project uses GitHub Actions to deploy to a remote Linux server:
 - `SERVER_IP`, `SERVER_USER`, `SSH_PRIVATE_KEY` (for SSH deployment)
 - `AZURE_OPENAI_ENDPOINT` (e.g., https://your-resource.openai.azure.com/)
 - `AZURE_OPENAI_API_KEY`
-- `AZURE_OPENAI_API_VERSION` (e.g., 2024-02-15-preview)
+- `AZURE_OPENAI_API_VERSION` (e.g., 2025-01-01-preview)
 - `AZURE_OPENAI_DEPLOYMENT_NAME` (e.g., gpt-4)
+- `AZURE_OPENAI_API_MODE` (optional: `chat_completions` or `responses`)
 - `CLOUDFLARED_TOKEN` (optional, for Cloudflare tunnel)
 
 ## Dependencies
@@ -233,8 +234,9 @@ The project uses GitHub Actions to deploy to a remote Linux server:
 **Environment Variables** (`.env` file):
 - `AZURE_OPENAI_ENDPOINT` - Your Azure OpenAI resource endpoint
 - `AZURE_OPENAI_API_KEY` - API key from Azure Portal
-- `AZURE_OPENAI_API_VERSION` - API version (default: 2024-02-15-preview)
+- `AZURE_OPENAI_API_VERSION` - API version (default: 2025-01-01-preview)
 - `AZURE_OPENAI_DEPLOYMENT_NAME` - Your deployed model name (e.g., gpt-4)
+- `AZURE_OPENAI_API_MODE` - Optional: `chat_completions` (default) or `responses` (use `responses` for GPT-5 deployments)
 - `CLOUDFLARED_TOKEN` - Optional Cloudflare tunnel token
 
 ## Project Goals
@@ -256,7 +258,7 @@ Per [docs/rag-project-overview.md](docs/rag-project-overview.md):
 - The project is fully containerized - `docker-compose up --build` runs everything
 
 **First-time setup**:
-1. Copy `.env` template and fill in Azure OpenAI credentials
+1. Copy `.env.example` to `.env` and fill in Azure OpenAI credentials
 2. Run `docker-compose up --build`
 3. Wait for model download (~80MB) and initial document indexing (30-60s)
 4. Access at http://localhost:8501

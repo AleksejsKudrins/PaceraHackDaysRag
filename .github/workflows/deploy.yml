@@ -48,6 +48,7 @@ jobs:
             AZURE_OPENAI_API_KEY=${{ secrets.AZURE_OPENAI_API_KEY }}
             AZURE_OPENAI_API_VERSION=${{ secrets.AZURE_OPENAI_API_VERSION }}
             AZURE_OPENAI_DEPLOYMENT_NAME=${{ secrets.AZURE_OPENAI_DEPLOYMENT_NAME }}
+            AZURE_OPENAI_API_MODE=${{ secrets.AZURE_OPENAI_API_MODE }}
             EOF
             chmod 600 .env
 
