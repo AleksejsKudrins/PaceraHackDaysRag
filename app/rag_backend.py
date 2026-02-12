@@ -164,6 +164,42 @@ Hypothetical Answer:"""
             # Fallback to original query if HyDE generation fails
             return query
 
+    def _generate_query_variations(self, query: str, num_variations: int = 3) -> List[str]:
+        """Generate multiple query variations for multi-query expansion"""
+        logger.info(f"Generating {num_variations} query variations for: {query}")
+        prompt = f"""Generate {num_variations} different variations of the following query.
+Each variation should explore a different aspect or interpretation of the user's intent.
+Make them specific and diverse. Output only the variations, one per line.
+
+Original Query: {query}
+
+Generate {num_variations} query variations:"""
+        
+        try:
+            response = self.client.chat.completions.create(
+                model=self.deployment_name,
+                messages=[
+                    {"role": "system", "content": "You are an expert at understanding user intent and generating diverse query variations."},
+                    {"role": "user", "content": prompt}
+                ],
+                max_completion_tokens=256
+            )
+            
+            # Parse variations (one per line)
+            variations_text = response.choices[0].message.content
+            variations = [v.strip().lstrip('0123456789.-) ') for v in variations_text.split('\n') if v.strip()]
+            
+            # Include original query + variations (limit to requested number)
+            all_queries = [query] + variations[:num_variations]
+            logger.info(f"Generated {len(all_queries)} total queries (including original)")
+            for i, q in enumerate(all_queries):
+                logger.info(f"  Query {i+1}: {q}")
+            return all_queries
+        except Exception as e:
+            logger.error(f"Error generating query variations: {e}")
+            # Fallback to original query only
+            return [query]
+
     @staticmethod
     def _extract_text_from_response(response) -> str:
         # chat.completions
@@ -340,9 +376,9 @@ Hypothetical Answer:"""
         sorted_indices = sorted(rrf_score.items(), key=lambda x: x[1], reverse=True)
         return [idx for idx, score in sorted_indices[:k]]
 
-    def query(self, question: str, k: int = 5, search_type: str = "hybrid", use_hyde: bool = False) -> Tuple[str, List[str]]:
+    def query(self, question: str, k: int = 5, search_type: str = "hybrid", use_hyde: bool = False, use_multi_query: bool = False, num_variations: int = 3) -> Tuple[str, List[str]]:
         """Retrieve relevant chunks and generate answer with citations"""
-        logger.info(f"Processing query: '{question}' (k={k}, type={search_type}, hyde={use_hyde})")
+        logger.info(f"Processing query: '{question}' (k={k}, type={search_type}, hyde={use_hyde}, multi_query={use_multi_query})")
 
         try:
             # Load index if not already loaded
@@ -350,47 +386,65 @@ Hypothetical Answer:"""
                 logger.info("Index not loaded, loading from disk...")
                 self.load_index()
 
-            retrieved_indices = []
+            # Multi-Query: Generate query variations if enabled
+            queries_to_search = [question]
+            if use_multi_query:
+                queries_to_search = self._generate_query_variations(question, num_variations)
+                logger.info(f"Using Multi-Query - will search with {len(queries_to_search)} query variations")
             
-            # HyDE: Generate hypothetical answer if enabled
-            search_text = question
-            if use_hyde and search_type in ["vector", "hybrid"]:
-                search_text = self._generate_hypothetical_answer(question)
-                logger.info(f"Using HyDE - searching with hypothetical answer instead of raw query")
+            # Collect all retrieved indices from all queries
+            all_retrieved_indices = set()
+            
+            for query_idx, current_query in enumerate(queries_to_search):
+                logger.info(f"Processing query variation {query_idx + 1}/{len(queries_to_search)}: {current_query}")
+                
+                retrieved_indices_for_current_query = [] # Renamed to avoid conflict with outer scope
+                
+                # HyDE: Generate hypothetical answer if enabled
+                search_text = current_query
+                if use_hyde and search_type in ["vector", "hybrid"]:
+                    search_text = self._generate_hypothetical_answer(current_query)
+                    logger.info(f"Using HyDE - searching with hypothetical answer instead of raw query")
 
-            # 1. Vector Search
-            if search_type in ["vector", "hybrid"]:
-                logger.info("Performing Vector Search...")
-                query_embedding = self.embedding_model.encode([search_text])[0]
-                distances, indices = self.index.search(
-                    query_embedding.reshape(1, -1).astype('float32'),
-                    k * 2 if search_type == "hybrid" else k # Fetch more for fusion
-                )
-                vector_results = {idx: i for i, idx in enumerate(indices[0])} # {doc_idx: rank}
-                if search_type == "vector":
-                    retrieved_indices = indices[0]
+                # 1. Vector Search
+                if search_type in ["vector", "hybrid"]:
+                    logger.info("Performing Vector Search...")
+                    query_embedding = self.embedding_model.encode([search_text])[0]
+                    distances, indices = self.index.search(
+                        query_embedding.reshape(1, -1).astype('float32'),
+                        k * 2 if search_type == "hybrid" else k # Fetch more for fusion
+                    )
+                    vector_results = {idx: i for i, idx in enumerate(indices[0])} # {doc_idx: rank}
+                    if search_type == "vector":
+                        retrieved_indices_for_current_query = indices[0]
 
-            # 2. Keyword Search (BM25)
-            if search_type in ["keyword", "hybrid"]:
-                logger.info("Performing Keyword Search (BM25)...")
-                tokenized_query = self._tokenize_chunk(question)
-                # BM25 returns scores, we need top-k
-                doc_scores = self.bm25.get_scores(tokenized_query)
-                # Get top k indices
-                top_n = k * 2 if search_type == "hybrid" else k
-                top_indices = np.argsort(doc_scores)[::-1][:top_n]
-                keyword_results = {idx: i for i, idx in enumerate(top_indices)} # {doc_idx: rank}
-                if search_type == "keyword":
-                    retrieved_indices = top_indices
+                # 2. Keyword Search (BM25)
+                if search_type in ["keyword", "hybrid"]:
+                    logger.info("Performing Keyword Search (BM25)...")
+                    tokenized_query = self._tokenize_chunk(current_query)
+                    doc_scores = self.bm25.get_scores(tokenized_query)
+                    # Get top k indices
+                    top_n = k * 2 if search_type == "hybrid" else k
+                    top_indices = np.argsort(doc_scores)[::-1][:top_n]
+                    keyword_results = {idx: i for i, idx in enumerate(top_indices)} # {doc_idx: rank}
+                    if search_type == "keyword":
+                        retrieved_indices_for_current_query = top_indices
 
-            # 3. Hybrid Fusion
-            if search_type == "hybrid":
-                logger.info("Performing Hybrid Fusion (RRF)...")
-                retrieved_indices = self._rrf_fusion(vector_results, keyword_results, k=k)
+                # 3. Hybrid Fusion
+                if search_type == "hybrid":
+                    logger.info("Performing Hybrid Fusion (RRF)...")
+                    retrieved_indices_for_current_query = self._rrf_fusion(vector_results, keyword_results, k=k)
+                
+                # Add retrieved indices from current query to the overall set
+                all_retrieved_indices.update(retrieved_indices_for_current_query)
+
+            # Convert set back to list for consistent processing, and limit to k if needed
+            # For multi-query, we might get more than k, so we take the top k from the combined set
+            final_retrieved_indices = list(all_retrieved_indices)[:k] 
 
             # Retrieve chunks
-            retrieved_chunks = [self.chunks[i] for i in retrieved_indices]
-            logger.info(f"Retrieved {len(retrieved_chunks)} chunks via {search_type} search")
+            retrieved_chunks = [self.chunks[i] for i in final_retrieved_indices]
+            logger.info(f"Retrieved {len(retrieved_chunks)} chunks via {search_type} search (after multi-query deduplication)")
 
             # Build context for LLM
             context = "\n\n".join([
