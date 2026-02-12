@@ -138,9 +138,10 @@ with st.sidebar:
     if st.session_state.processed_chunks:
         st.info(f"Total chunks in memory: {len(st.session_state.processed_chunks)}")
         if st.checkbox("Show Chunk Preview"):
-            for i, c in enumerate(st.session_state.processed_chunks):
+            for i, c in enumerate(st.session_state.processed_chunks[:20]):
                 st.caption(f"Chunk {i} ({c['metadata']['source']})")
-                st.text(c['content'])
+                text = c['content']
+                st.text(text[:500] + "..." if len(text) > 500 else text)
 
 # Display the main title and description of the application
 title_col, version_col = st.columns([6, 1])
